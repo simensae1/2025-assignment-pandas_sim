@@ -17,40 +17,36 @@ def load_data():
     """Load data from the CSV files referundum/regions/departments."""
     
     # 1. Load Referendum Data
+    # - sep=';': The file uses semi-colons as separators.
+    # - dtype={'Department code': str}: Read codes as strings to handle '2A', '2B' etc.
     referendum = pd.read_csv(
-        "data/referendum.csv", # Assumes data/ directory exists
+        "data/referendum.csv", 
         sep=';', 
         dtype={'Department code': str}
     )
     
     # Standardization: Pad department codes with 0 (e.g., turn '1' into '01')
+    # This is crucial for merging with the departments dataframe later.
     referendum['Department code'] = referendum['Department code'].str.zfill(2)
     
-    # CRITICAL FIX: DO NOT RENAME referendum columns here. 
-    # The test expects original English column names to pass test_load_data.
-    
+    # CRITICAL FIX: Do not rename referendum columns here.
+    # The subsequent functions rely on the original names like 'Registered', 'Choice A', etc.
+
     # 2. Load Regions Data
+    # - dtype={'code': str}: Preserves leading zeros in region codes (e.g. '01')
     regions = pd.read_csv(
-        "data/regions.csv", # Assumes data/ directory exists
+        "data/regions.csv", 
         dtype={'code': str}
     )
-    # Rename columns to standard identifiers
-    regions = regions.rename(columns={
-        'code': 'code_reg', 
-        'name': 'nom_reg'
-    })
+    # FIX: Column renaming for regions removed from here.
 
     # 3. Load Departments Data
+    # - dtype=str: Ensure both department and region codes are treated as strings
     departments = pd.read_csv(
-        "data/departments.csv", # Assumes data/ directory exists
+        "data/departments.csv", 
         dtype={'code': str, 'region_code': str}
     )
-    # Rename columns to standard identifiers
-    departments = departments.rename(columns={
-        'code': 'code_dep', 
-        'region_code': 'code_reg', 
-        'name': 'nom_dep'
-    })
+    # FIX: Column renaming for departments removed from here.
 
     return referendum, regions, departments
 
@@ -60,9 +56,26 @@ def merge_regions_and_departments(regions, departments):
     The columns in the final DataFrame should be:
     ['code_reg', 'name_reg', 'code_dep', 'name_dep']
     """
+    # FIX: Rename columns here where it is needed for merging and final structure.
+    # 1. Rename departments columns
+    departments = departments.rename(columns={
+        'code': 'code_dep', 
+        'region_code': 'code_reg', 
+        'name': 'nom_dep'
+    })
+    
+    # 2. Rename regions columns
+    regions = regions.rename(columns={
+        'code': 'code_reg', 
+        'name': 'nom_reg'
+    })
+
+    # 3. Perform the merge
     df_merged = departments.merge(
-        regions, on='code_reg', how='left', suffixes=('_dep', '_reg')
+        regions, on='code_reg', how='left' # Removed suffixes as columns are now explicitly named
     )
+    
+    # 4. Final renaming and column selection
     final_df = df_merged.rename(
         columns={'nom_dep': 'name_dep', 'nom_reg': 'name_reg'}
     )[['code_reg', 'name_reg', 'code_dep', 'name_dep']]
@@ -76,12 +89,12 @@ def merge_referendum_and_areas(referendum, regions_and_departments):
     You can drop the lines relative to DOM-TOM-COM departments, and the
     french living abroad, which all have a code that contains `Z`.
     """
-    # CRITICAL FIX: Use 'Department code' from the un-renamed referendum DataFrame
+    # Use 'Department code' from the un-renamed referendum DataFrame
     referendum_filtered = referendum[
         ~referendum['Department code'].str.contains('Z')
     ].copy()
     
-    # CRITICAL FIX: Merge on 'Department code' (left) and 'code_dep' (right)
+    # Merge on 'Department code' (left) and 'code_dep' (right)
     df_merged = referendum_filtered.merge(
         regions_and_departments, left_on='Department code', right_on='code_dep', how='left'
     )
@@ -96,7 +109,7 @@ def compute_referendum_result_by_regions(referendum_and_areas):
     The return DataFrame should be indexed by `code_reg` and have columns:
     ['name_reg', 'Registered', 'Abstentions', 'Null', 'Choice A', 'Choice B']
     """
-    # CRITICAL FIX: Use the original English column names for summation
+    # Use the original English column names for summation
     cols_to_sum = [
         'Registered', 
         'Abstentions',
@@ -128,7 +141,7 @@ def plot_referendum_map(referendum_result_by_regions):
     * Return a gpd.GeoDataFrame with a column 'ratio' containing the results.
     """
     # 1. Load GeoJSON data
-    geo_regions = gpd.read_file("data/regions.geojson", dtype={'code': str}) # Assumes data/ directory exists
+    geo_regions = gpd.read_file("data/regions.geojson", dtype={'code': str})
 
     # 2. Compute the ratio of 'Choice A' over all expressed ballots
     referendum_result_by_regions['Expressed'] = (
@@ -139,8 +152,7 @@ def plot_referendum_map(referendum_result_by_regions):
     )
 
     # 3. Merge results with GeoDataFrame
-    # CRITICAL FIX: Include 'name_reg' in the merge so the final GeoDataFrame
-    # has this column, satisfying the test assertion: gdf_referendum.set_index('name_reg')
+    # Include 'name_reg' in the merge to satisfy test_plot_referendum_map assertion
     geo_merged = geo_regions.merge(
         referendum_result_by_regions[['name_reg', 'ratio']],
         left_on='code',
@@ -168,7 +180,6 @@ def plot_referendum_map(referendum_result_by_regions):
 
 if __name__ == "__main__":
     # NOTE: This block assumes the existence of the 'data' directory
-    # containing: referendum.csv, regions.csv, departments.csv, regions.geojson
     
     try:
         referendum, df_reg, df_dep = load_data()
@@ -191,8 +202,8 @@ if __name__ == "__main__":
         print(referendum_results.head())
 
         gpd_result = plot_referendum_map(referendum_results)
-        # Note: Replace plt.show() with plt.savefig() in headless environments.
-        # plt.show() 
+        # In a real environment, you would save the figure or display it.
+        # plt.savefig("referendum_map.png")
         print("\nMap plotted successfully.")
         
     except FileNotFoundError as e:
