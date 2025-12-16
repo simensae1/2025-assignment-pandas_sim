@@ -159,26 +159,22 @@ if __name__ == "__main__":
 
     try:
         referendum, df_reg, df_dep = load_data()
-        print("Data loaded successfully.")
 
         regions_and_departments = merge_regions_and_departments(
             df_reg, df_dep
         )
-        print("Regions and departments merged.")
 
         referendum_and_areas = merge_referendum_and_areas(
             referendum, regions_and_departments
         )
-        print(f"{len(referendum_and_areas)} rows remain after filtering.")
 
         referendum_results = compute_referendum_result_by_regions(
             referendum_and_areas
         )
-        print("\n--- Aggregated Results by Region (Head) ---")
+
         print(referendum_results.head())
 
         gpd_result = plot_referendum_map(referendum_results)
-        print("\nMap plotted successfully.")
 
     except FileNotFoundError as e:
         print("Error: Data file not found.")
