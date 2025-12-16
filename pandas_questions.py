@@ -17,21 +17,22 @@ def load_data():
     """Load data from the CSV files referundum/regions/departments."""
 
     referendum = pd.read_csv(
-        "data/referendum.csv", 
-        sep=';', 
+        "data/referendum.csv",
+        sep=';',
         dtype={'Department code': str}
     )
 
     referendum['Department code'] = referendum['Department code'].str.zfill(2)
     regions = pd.read_csv(
-        "data/regions.csv", 
+        "data/regions.csv",
         dtype={'code': str}
     )
     departments = pd.read_csv(
-        "data/departments.csv", 
-        dtype={'code': str, 'region_code': str}
+        "data/departments.csv",
+                dtype={'code': str, 'region_code': str}
     )
     return referendum, regions, departments
+
 
 def merge_regions_and_departments(regions, departments):
     """Merge regions and departments in one DataFrame.
@@ -40,13 +41,13 @@ def merge_regions_and_departments(regions, departments):
     ['code_reg', 'name_reg', 'code_dep', 'name_dep']
     """
     departments = departments.rename(columns={
-        'code': 'code_dep', 
-        'region_code': 'code_reg', 
+        'code': 'code_dep',
+        'region_code': 'code_reg',
         'name': 'nom_dep'
     })
 
     regions = regions.rename(columns={
-        'code': 'code_reg', 
+        'code': 'code_reg',
         'name': 'nom_reg'
     })
 
@@ -71,12 +72,13 @@ def merge_referendum_and_areas(referendum, regions_and_departments):
     referendum_filtered = referendum[
         ~referendum['Department code'].str.contains('Z')
     ].copy()
-    
+
     df_merged = referendum_filtered.merge(
-        regions_and_departments, left_on='Department code', right_on='code_dep', how='left'
+        regions_and_departments, left_on='Department code', right_on='code_dep', 
+        how='left'
     )
     df_merged = df_merged.dropna(subset=['code_reg'])
-    
+
     return df_merged
 
 
@@ -87,10 +89,10 @@ def compute_referendum_result_by_regions(referendum_and_areas):
     ['name_reg', 'Registered', 'Abstentions', 'Null', 'Choice A', 'Choice B']
     """
     cols_to_sum = [
-        'Registered', 
+        'Registered',
         'Abstentions',
-        'Null', 
-        'Choice A', 
+        'Null',
+        'Choice A',
         'Choice B'
     ]
 
@@ -118,10 +120,12 @@ def plot_referendum_map(referendum_result_by_regions):
 
     # 2. Compute the ratio of 'Choice A' over all expressed ballots
     referendum_result_by_regions['Expressed'] = (
-        referendum_result_by_regions['Choice A'] + referendum_result_by_regions['Choice B']
+        referendum_result_by_regions['Choice A'] + 
+        referendum_result_by_regions['Choice B']
     )
     referendum_result_by_regions['ratio'] = (
-        referendum_result_by_regions['Choice A'] / referendum_result_by_regions['Expressed']
+        referendum_result_by_regions['Choice A'] / 
+        referendum_result_by_regions['Expressed']
     )
 
     # 3. Merge results with GeoDataFrame
@@ -132,19 +136,19 @@ def plot_referendum_map(referendum_result_by_regions):
         right_index=True,
         how='left'
     )
-    
+
     # 4. Plot the map
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-    
+
     geo_merged.plot(
         column='ratio',
         ax=ax,
         legend=True,
-        cmap='RdYlGn', 
+        cmap='RdYlGn',
         legend_kwds={'label': "Ratio of 'Choice A' over Expressed Ballots"},
         edgecolor='black'
     )
-    
+
     ax.set_title("Referendum Results by Region (Ratio of 'Choice A')")
     ax.set_axis_off()
 
