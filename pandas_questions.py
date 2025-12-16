@@ -15,36 +15,56 @@ import matplotlib.pyplot as plt
 
 def load_data():
     """Load data from the CSV files referundum/regions/departments."""
-    referendum = pd.DataFrame({})
-    regions = pd.DataFrame({})
-    departments = pd.DataFrame({})
+    
+    # 1. Load Referendum Data
+    # - sep=';': The file uses semi-colons as separators.
+    # - dtype={'Department code': str}: Read codes as strings to handle '2A', '2B' etc.
+    referendum = pd.read_csv(
+        "data/referendum.csv", 
+        sep=';', 
+        dtype={'Department code': str}
+    )
+    
+    # Standardization: Pad department codes with 0 (e.g., turn '1' into '01')
+    # This is crucial for merging with the departments dataframe later.
+    referendum['Department code'] = referendum['Department code'].str.zfill(2)
+    
+    # Rename columns to match the French variable names expected by subsequent functions
+    referendum = referendum.rename(columns={
+        'Department code': 'code_dep',
+        'Department name': 'nom_dep',
+        'Registered': 'Inscrits',
+        'Null': 'Blancs et Nuls',
+        'Choice A': 'OUI',
+        'Choice B': 'NON'
+    })
+
+    # 2. Load Regions Data
+    # - dtype={'code': str}: Preserves leading zeros in region codes (e.g. '01')
+    regions = pd.read_csv(
+        "data/regions.csv", 
+        dtype={'code': str}
+    )
+    # Rename columns to standard identifiers
+    regions = regions.rename(columns={
+        'code': 'code_reg', 
+        'name': 'nom_reg'
+    })
+
+    # 3. Load Departments Data
+    # - dtype=str: Ensure both department and region codes are treated as strings
+    departments = pd.read_csv(
+        "data/departments.csv", 
+        dtype={'code': str, 'region_code': str}
+    )
+    # Rename columns to standard identifiers
+    departments = departments.rename(columns={
+        'code': 'code_dep', 
+        'region_code': 'code_reg', 
+        'name': 'nom_dep'
+    })
 
     return referendum, regions, departments
-
-import pandas as pd
-import geopandas as gpd
-import matplotlib.pyplot as plt
-import os
-
-# Define the directory where data files are expected
-DATA_DIR = 'data'
-
-
-def load_data():
-    """Load data from the CSV files referendum/regions/departments."""
-    
-    # Construct full file paths
-    referendum_path = os.path.join(DATA_DIR, 'referendum.csv')
-    regions_path = os.path.join(DATA_DIR, 'regions.csv')
-    departments_path = os.path.join(DATA_DIR, 'departments.csv')
-    
-    # Load dataframes
-    referendum = pd.read_csv(referendum_path, sep=';', dtype={'code_dep': str})
-    regions = pd.read_csv(regions_path, sep=';', dtype={'code_reg': str})
-    departments = pd.read_csv(departments_path, sep=';', dtype={'code_dep': str, 'code_reg': str})
-
-    return referendum, regions, departments
-
 
 def merge_regions_and_departments(regions, departments):
     """Merge regions and departments in one DataFrame.
@@ -130,8 +150,7 @@ def plot_referendum_map(referendum_result_by_regions):
     * Return a gpd.GeoDataFrame with a column 'ratio' containing the results.
     """
     # 1. Load GeoJSON data
-    geojson_path = os.path.join(DATA_DIR, 'regions.geojson')
-    geo_regions = gpd.read_file(geojson_path, dtype={'code': str})
+    geo_regions = gpd.read_file("data/regions.geojson", dtype={'code': str})
 
     # 2. Compute the ratio of 'Choice A' over all expressed ballots
     # Expressed Ballots = Registered - Abstentions - Null (or Choice A + Choice B)
