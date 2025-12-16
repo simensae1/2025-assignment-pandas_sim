@@ -17,32 +17,21 @@ def load_data():
     """Load data from the CSV files referundum/regions/departments."""
     
     # 1. Load Referendum Data
-    # - sep=';': The file uses semi-colons as separators.
-    # - dtype={'Department code': str}: Read codes as strings to handle '2A', '2B' etc.
     referendum = pd.read_csv(
-        "data/referendum.csv", 
+        "data/referendum.csv", # Assumes data/ directory exists
         sep=';', 
         dtype={'Department code': str}
     )
     
     # Standardization: Pad department codes with 0 (e.g., turn '1' into '01')
-    # This is crucial for merging with the departments dataframe later.
     referendum['Department code'] = referendum['Department code'].str.zfill(2)
     
-    # Rename columns to match the French variable names expected by subsequent functions
-    referendum = referendum.rename(columns={
-        'Department code': 'code_dep',
-        'Department name': 'nom_dep',
-        'Registered': 'Inscrits',
-        'Null': 'Blancs et Nuls',
-        'Choice A': 'OUI',
-        'Choice B': 'NON'
-    })
-
+    # CRITICAL FIX: DO NOT RENAME referendum columns here. 
+    # The test expects original English column names to pass test_load_data.
+    
     # 2. Load Regions Data
-    # - dtype={'code': str}: Preserves leading zeros in region codes (e.g. '01')
     regions = pd.read_csv(
-        "data/regions.csv", 
+        "data/regions.csv", # Assumes data/ directory exists
         dtype={'code': str}
     )
     # Rename columns to standard identifiers
@@ -52,9 +41,8 @@ def load_data():
     })
 
     # 3. Load Departments Data
-    # - dtype=str: Ensure both department and region codes are treated as strings
     departments = pd.read_csv(
-        "data/departments.csv", 
+        "data/departments.csv", # Assumes data/ directory exists
         dtype={'code': str, 'region_code': str}
     )
     # Rename columns to standard identifiers
@@ -87,18 +75,18 @@ def merge_referendum_and_areas(referendum, regions_and_departments):
 
     You can drop the lines relative to DOM-TOM-COM departments, and the
     french living abroad, which all have a code that contains `Z`.
-
-    DOM-TOM-COM departments are departements that are remote from metropolitan
-    France, like Guadaloupe, Reunion, or Tahiti.
     """
+    # CRITICAL FIX: Use 'Department code' from the un-renamed referendum DataFrame
     referendum_filtered = referendum[
-        ~referendum['code_dep'].str.contains('Z')
+        ~referendum['Department code'].str.contains('Z')
     ].copy()
+    
+    # CRITICAL FIX: Merge on 'Department code' (left) and 'code_dep' (right)
     df_merged = referendum_filtered.merge(
-        regions_and_departments, on='code_dep', how='left'
+        regions_and_departments, left_on='Department code', right_on='code_dep', how='left'
     )
     df_merged = df_merged.dropna(subset=['code_reg'])
-
+    
     return df_merged
 
 
@@ -108,12 +96,13 @@ def compute_referendum_result_by_regions(referendum_and_areas):
     The return DataFrame should be indexed by `code_reg` and have columns:
     ['name_reg', 'Registered', 'Abstentions', 'Null', 'Choice A', 'Choice B']
     """
+    # CRITICAL FIX: Use the original English column names for summation
     cols_to_sum = [
-        'Inscrits',  # Registered
+        'Registered', 
         'Abstentions',
-        'Blancs et Nuls',  # Null
-        'OUI',  # Choice A
-        'NON'  # Choice B
+        'Null', 
+        'Choice A', 
+        'Choice B'
     ]
     
     # Group by region code and name, and sum the required columns
@@ -121,22 +110,11 @@ def compute_referendum_result_by_regions(referendum_and_areas):
         ['code_reg', 'name_reg']
     )[cols_to_sum].sum().reset_index()
 
-    # Rename columns to match the requirement
-    df_results.rename(
-        columns={
-            'Inscrits': 'Registered',
-            'Blancs et Nuls': 'Null',
-            'OUI': 'Choice A',
-            'NON': 'Choice B',
-        },
-        inplace=True
-    )
-    
     # Set 'code_reg' as index as requested
     df_results.set_index('code_reg', inplace=True)
     
     # Reorder columns as requested
-    final_cols = ['name_reg', 'Registered', 'Abstentions', 'Null', 'Choice A', 'Choice B']
+    final_cols = ['name_reg'] + cols_to_sum
     return df_results[final_cols]
 
 
@@ -150,10 +128,9 @@ def plot_referendum_map(referendum_result_by_regions):
     * Return a gpd.GeoDataFrame with a column 'ratio' containing the results.
     """
     # 1. Load GeoJSON data
-    geo_regions = gpd.read_file("data/regions.geojson", dtype={'code': str})
+    geo_regions = gpd.read_file("data/regions.geojson", dtype={'code': str}) # Assumes data/ directory exists
 
     # 2. Compute the ratio of 'Choice A' over all expressed ballots
-    # Expressed Ballots = Registered - Abstentions - Null (or Choice A + Choice B)
     referendum_result_by_regions['Expressed'] = (
         referendum_result_by_regions['Choice A'] + referendum_result_by_regions['Choice B']
     )
@@ -162,30 +139,29 @@ def plot_referendum_map(referendum_result_by_regions):
     )
 
     # 3. Merge results with GeoDataFrame
-    # The GeoDataFrame uses 'code' for the region code, and the results table uses 'code_reg' (index)
+    # CRITICAL FIX: Include 'name_reg' in the merge so the final GeoDataFrame
+    # has this column, satisfying the test assertion: gdf_referendum.set_index('name_reg')
     geo_merged = geo_regions.merge(
-        referendum_result_by_regions[['ratio']],
+        referendum_result_by_regions[['name_reg', 'ratio']],
         left_on='code',
         right_index=True,
         how='left'
     )
     
     # 4. Plot the map
-    # Create the map (figsize chosen for better display)
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
     
-    # Plotting the ratio (rate of 'Choice A')
     geo_merged.plot(
         column='ratio',
         ax=ax,
         legend=True,
-        cmap='RdYlGn',  # Red-Yellow-Green colormap for political/binary results
+        cmap='RdYlGn', 
         legend_kwds={'label': "Ratio of 'Choice A' over Expressed Ballots"},
         edgecolor='black'
     )
     
     ax.set_title("Referendum Results by Region (Ratio of 'Choice A')")
-    ax.set_axis_off()  # Remove axis ticks and labels
+    ax.set_axis_off()
 
     return geo_merged
 
@@ -215,11 +191,10 @@ if __name__ == "__main__":
         print(referendum_results.head())
 
         gpd_result = plot_referendum_map(referendum_results)
+        # Note: Replace plt.show() with plt.savefig() in headless environments.
+        # plt.show() 
         print("\nMap plotted successfully.")
         
-        # Display the map
-        plt.show()
-
     except FileNotFoundError as e:
         print(f"\nError: Data file not found. Please ensure the 'data' directory exists and contains all required files (referendum.csv, regions.csv, departments.csv, regions.geojson).")
         print(f"Missing file path: {e}")
