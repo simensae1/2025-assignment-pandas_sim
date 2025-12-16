@@ -74,7 +74,7 @@ def merge_referendum_and_areas(referendum, regions_and_departments):
     ].copy()
 
     df_merged = referendum_filtered.merge(
-        regions_and_departments, left_on='Department code', right_on='code_dep', 
+        regions_and_departments, left_on='Department code', right_on='code_dep',
         how='left'
     )
     df_merged = df_merged.dropna(subset=['code_reg'])
@@ -120,11 +120,11 @@ def plot_referendum_map(referendum_result_by_regions):
 
     # 2. Compute the ratio of 'Choice A' over all expressed ballots
     referendum_result_by_regions['Expressed'] = (
-        referendum_result_by_regions['Choice A'] + 
+        referendum_result_by_regions['Choice A'] +
         referendum_result_by_regions['Choice B']
     )
     referendum_result_by_regions['ratio'] = (
-        referendum_result_by_regions['Choice A'] / 
+        referendum_result_by_regions['Choice A'] /
         referendum_result_by_regions['Expressed']
     )
 
@@ -169,7 +169,7 @@ if __name__ == "__main__":
         referendum_and_areas = merge_referendum_and_areas(
             referendum, regions_and_departments
         )
-        print(f"Referendum and areas merged. {len(referendum_and_areas)} rows remain after filtering.")
+        print(f"{len(referendum_and_areas)} rows remain after filtering.")
 
         referendum_results = compute_referendum_result_by_regions(
             referendum_and_areas
@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
         gpd_result = plot_referendum_map(referendum_results)
         print("\nMap plotted successfully.")
-        
+
     except FileNotFoundError as e:
-        print(f"\nError: Data file not found. Please ensure the 'data' directory exists and contains all required files (referendum.csv, regions.csv, departments.csv, regions.geojson).")
+        print(f"Error: Data file not found.")
         print(f"Missing file path: {e}")
