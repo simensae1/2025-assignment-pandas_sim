@@ -29,7 +29,7 @@ def load_data():
     )
     departments = pd.read_csv(
         "data/departments.csv",
-                dtype={'code': str, 'region_code': str}
+        dtype={'code': str, 'region_code': str}
     )
     return referendum, regions, departments
 
@@ -181,5 +181,5 @@ if __name__ == "__main__":
         print("\nMap plotted successfully.")
 
     except FileNotFoundError as e:
-        print(f"Error: Data file not found.")
+        print("Error: Data file not found.")
         print(f"Missing file path: {e}")
